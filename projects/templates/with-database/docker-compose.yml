@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  app:
+    # Opção 1: Usar imagem pronta
+    image: seu-usuario/sua-imagem:latest
+
+    # Opção 2: Build local (descomente e comente a linha 'image' acima)
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+
+    container_name: meu-sistema-app
+    restart: unless-stopped
+
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+
+      # Configuração do banco de dados
+      # IMPORTANTE: Use variáveis do arquivo .env
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+
+      # String de conexão completa (alternativa)
+      # - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+
+    networks:
+      - proxy-network  # Para comunicação com Nginx
+      - internal       # Para comunicação com banco de dados
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    labels:
+      - "com.nginx-vps.project=meu-sistema"
+
+  db:
+    image: postgres:15-alpine
+    container_name: meu-sistema-db
+    restart: unless-stopped
+
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      # Configurações de performance (opcional)
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+
+    volumes:
+      # Dados persistentes
+      - db-data:/var/lib/postgresql/data
+
+      # Scripts de inicialização (opcional)
+      # - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+    networks:
+      - internal  # Apenas rede interna, SEM acesso externo
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    labels:
+      - "com.nginx-vps.project=meu-sistema"
+      - "com.nginx-vps.component=database"
+
+    # Limites de recursos (opcional - ajuste conforme necessário)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1.0'
+    #       memory: 512M
+    #     reservations:
+    #       memory: 256M
+
+  # Opcional: Cache com Redis
+  # cache:
+  #   image: redis:7-alpine
+  #   container_name: meu-sistema-cache
+  #   restart: unless-stopped
+  #   command: redis-server --requirepass ${REDIS_PASSWORD}
+  #   networks:
+  #     - internal
+  #   volumes:
+  #     - cache-data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+volumes:
+  db-data:
+    name: meu-sistema-db-data
+  # cache-data:
+  #   name: meu-sistema-cache-data
+
+networks:
+  proxy-network:
+    external: true
+  internal:
+    driver: bridge
+    name: meu-sistema-internal

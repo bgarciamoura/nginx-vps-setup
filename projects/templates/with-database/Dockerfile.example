@@ -1,0 +1,28 @@
+# Exemplo de Dockerfile para aplicação Node.js com banco de dados
+
+FROM node:18-alpine
+
+# Instalar cliente PostgreSQL para health checks (opcional)
+RUN apk add --no-cache postgresql-client
+
+WORKDIR /app
+
+# Copiar package.json e instalar dependências
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copiar código da aplicação
+COPY . .
+
+# Expor porta
+EXPOSE 3000
+
+# Usuário não-root para segurança
+USER node
+
+# Comando para iniciar a aplicação
+# IMPORTANTE: Implemente wait-for-db na sua aplicação ou use wait-for-it script
+CMD ["node", "server.js"]
+
+# Alternativa com wait-for-it (adicione o script ao projeto)
+# CMD ["./wait-for-it.sh", "db:5432", "--", "node", "server.js"]

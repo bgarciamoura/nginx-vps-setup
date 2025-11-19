@@ -1,0 +1,90 @@
+# GitHub Actions - Validação de Configurações
+# Este workflow valida as configurações do Nginx quando há push ou PR
+
+name: Validate Configurations
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'nginx/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'nginx/**'
+      - 'docker-compose.yml'
+
+jobs:
+  validate-nginx:
+    name: Validate Nginx Configuration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test Nginx Configuration Syntax
+        run: |
+          docker run --rm \
+            -v $(pwd)/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
+            -v $(pwd)/nginx/conf.d:/etc/nginx/conf.d:ro \
+            -v $(pwd)/nginx/snippets:/etc/nginx/snippets:ro \
+            nginx:alpine \
+            nginx -t
+
+      - name: Validate Docker Compose
+        run: |
+          docker compose config
+
+  shellcheck:
+    name: Shellcheck Scripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './scripts'
+          severity: warning
+
+  markdown-lint:
+    name: Lint Markdown Files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v14
+        with:
+          globs: '**/*.md'
+          config: '.markdownlint.json'
+        continue-on-error: true
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true

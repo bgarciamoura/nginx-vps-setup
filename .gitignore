@@ -1,0 +1,41 @@
+# Certificados SSL e chaves privadas
+nginx/ssl/
+certbot/
+letsencrypt/
+*.pem
+*.key
+*.crt
+*.csr
+
+# Logs
+logs/
+*.log
+
+# Variáveis de ambiente
+.env
+
+# Dados persistentes dos containers
+volumes/
+data/
+
+# Backups (opcional - descomente se não quiser versionar)
+# backups/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker
+.docker/
+
+# Temporários
+tmp/
+temp/
+*.tmp

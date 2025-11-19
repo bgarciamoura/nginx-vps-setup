@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  app-1:
+    # Opção 1: Usar imagem pronta
+    image: seu-usuario/sua-imagem:latest
+
+    # Opção 2: Build local (descomente e comente a linha 'image' acima)
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+
+    container_name: minha-api-1
+    restart: unless-stopped
+
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - INSTANCE_NAME=api-1
+      # Adicione outras variáveis aqui
+
+    networks:
+      - proxy-network
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    labels:
+      - "com.nginx-vps.project=minha-api"
+      - "com.nginx-vps.instance=1"
+
+  app-2:
+    image: seu-usuario/sua-imagem:latest
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+
+    container_name: minha-api-2
+    restart: unless-stopped
+
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - INSTANCE_NAME=api-2
+
+    networks:
+      - proxy-network
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    labels:
+      - "com.nginx-vps.project=minha-api"
+      - "com.nginx-vps.instance=2"
+
+  app-3:
+    image: seu-usuario/sua-imagem:latest
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+
+    container_name: minha-api-3
+    restart: unless-stopped
+
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - INSTANCE_NAME=api-3
+
+    networks:
+      - proxy-network
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    labels:
+      - "com.nginx-vps.project=minha-api"
+      - "com.nginx-vps.instance=3"
+
+  # Adicione mais réplicas conforme necessário
+  # Copie o bloco acima e altere app-4, minha-api-4, instance=4, etc.
+
+networks:
+  proxy-network:
+    external: true

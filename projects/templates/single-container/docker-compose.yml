@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  app:
+    # Opção 1: Usar imagem pronta
+    image: seu-usuario/sua-imagem:latest
+
+    # Opção 2: Build local (descomente e comente a linha 'image' acima)
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+
+    container_name: meu-app
+    restart: unless-stopped
+
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Adicione outras variáveis aqui
+
+    # Descomentar se precisar de volumes para dados persistentes
+    # volumes:
+    #   - app-data:/app/data
+
+    networks:
+      - proxy-network
+
+    # Health check (ajuste conforme sua aplicação)
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    labels:
+      - "com.nginx-vps.project=meu-app"
+
+# Descomentar se usar volumes
+# volumes:
+#   app-data:
+
+networks:
+  proxy-network:
+    external: true

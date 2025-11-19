@@ -1,0 +1,28 @@
+# Exemplo de Dockerfile para aplicação Node.js com load balancing
+# IMPORTANTE: Para load balancing funcionar, sua aplicação deve ser stateless
+# ou usar armazenamento compartilhado (Redis, banco de dados, etc.)
+
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copiar package.json e instalar dependências
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copiar código da aplicação
+COPY . .
+
+# Expor porta
+EXPOSE 3000
+
+# Usuário não-root para segurança
+USER node
+
+# Health check endpoint recomendado
+# Sua aplicação deve ter um endpoint /health que retorna 200 OK
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Comando para iniciar a aplicação
+CMD ["node", "server.js"]
