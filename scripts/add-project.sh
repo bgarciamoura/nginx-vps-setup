@@ -138,8 +138,8 @@ elif [ "$TEMPLATE" = "with-database" ]; then
     print_warning "IMPORTANTE: Edite $PROJECT_DIR/.env e configure senhas seguras!"
 fi
 
-# Criar configuração Nginx
-print_info "Criando configuração Nginx..."
+# Criar configuração Nginx (APENAS HTTP inicialmente)
+print_info "Criando configuração Nginx (HTTP)..."
 NGINX_CONF="$PROJECT_ROOT/nginx/conf.d/$PROJECT_NAME.conf"
 
 if [ -f "$NGINX_CONF" ]; then
@@ -147,23 +147,43 @@ if [ -f "$NGINX_CONF" ]; then
     exit 1
 fi
 
-# Copiar template de configuração Nginx
-cp "$PROJECT_DIR/nginx-config-example.conf" "$NGINX_CONF"
+# Criar configuração inicial apenas com HTTP
+cat > "$NGINX_CONF" <<EOF
+# Configuração Nginx para $PROJECT_NAME
+# HTTP (initial setup)
 
-# Personalizar configuração
-if [ "$TEMPLATE" = "single-container" ]; then
-    sed -i "s/meu-app/$PROJECT_NAME/g" "$NGINX_CONF"
-    sed -i "s/meu-app.dominio.com/$DOMAIN/g" "$NGINX_CONF"
-    sed -i "s/:3000/:$PORT/g" "$NGINX_CONF"
-elif [ "$TEMPLATE" = "load-balanced" ]; then
-    sed -i "s/minha-api/$PROJECT_NAME/g" "$NGINX_CONF"
-    sed -i "s/minha-api.dominio.com/$DOMAIN/g" "$NGINX_CONF"
-    sed -i "s/:3000/:$PORT/g" "$NGINX_CONF"
-elif [ "$TEMPLATE" = "with-database" ]; then
-    sed -i "s/meu-sistema/$PROJECT_NAME/g" "$NGINX_CONF"
-    sed -i "s/meu-sistema.dominio.com/$DOMAIN/g" "$NGINX_CONF"
-    sed -i "s/:3000/:$PORT/g" "$NGINX_CONF"
-fi
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN;
+
+    # Let's Encrypt challenge
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        allow all;
+    }
+
+    # Proxy para aplicação
+    location / {
+        proxy_pass http://$PROJECT_NAME:$PORT;
+
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+
+        # WebSocket support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+EOF
 
 print_success "Configuração Nginx criada: $NGINX_CONF"
 
@@ -188,10 +208,81 @@ read GET_SSL
 
 if [[ "$GET_SSL" =~ ^[sS]$ ]]; then
     print_info "Obtendo certificado SSL para $DOMAIN..."
-    "$SCRIPT_DIR/get-ssl.sh" "$DOMAIN"
+    if "$SCRIPT_DIR/get-ssl.sh" "$DOMAIN"; then
+        print_success "Certificado SSL obtido!"
+
+        # Agora atualizar configuração para incluir HTTPS
+        print_info "Atualizando configuração Nginx para incluir HTTPS..."
+
+        cat > "$NGINX_CONF" <<EOF
+# Configuração Nginx para $PROJECT_NAME
+
+# HTTP - Redirect to HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN;
+
+    # Let's Encrypt challenge
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        allow all;
+    }
+
+    # Redirect to HTTPS
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+# HTTPS
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name $DOMAIN;
+
+    # SSL Certificates
+    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+
+    # SSL parameters
+    include /etc/nginx/snippets/ssl-params.conf;
+    include /etc/nginx/snippets/security-headers.conf;
+
+    # Logs
+    access_log /var/log/nginx/$PROJECT_NAME-access.log main;
+    error_log /var/log/nginx/$PROJECT_NAME-error.log warn;
+
+    # Rate limiting
+    limit_req zone=general burst=20 nodelay;
+    limit_conn conn_limit 10;
+
+    # Upload size
+    client_max_body_size 50M;
+
+    # Proxy para aplicação
+    location / {
+        proxy_pass http://$PROJECT_NAME:$PORT;
+        include /etc/nginx/snippets/proxy-params.conf;
+    }
+}
+EOF
+
+        # Testar novamente
+        if docker compose -f "$PROJECT_ROOT/docker-compose.yml" exec nginx nginx -t &>/dev/null; then
+            docker compose -f "$PROJECT_ROOT/docker-compose.yml" exec nginx nginx -s reload
+            print_success "Configuração HTTPS ativada!"
+        else
+            print_warning "Erro ao ativar HTTPS. Configuração HTTP mantida."
+        fi
+    else
+        print_warning "Não foi possível obter certificado SSL."
+        print_info "A configuração HTTP está ativa. Obtenha SSL depois com:"
+        print_info "./scripts/get-ssl.sh $DOMAIN"
+    fi
 else
-    print_warning "Lembre-se de obter o certificado SSL antes de fazer deploy:"
-    print_info "./scripts/get-ssl.sh $DOMAIN"
+    print_warning "SSL não configurado. Site acessível apenas via HTTP."
+    print_info "Para obter SSL depois: ./scripts/get-ssl.sh $DOMAIN"
 fi
 
 # Resumo final
@@ -227,6 +318,13 @@ fi
 print_info "Arquivos criados:"
 echo "  - Projeto: $PROJECT_DIR"
 echo "  - Nginx: $NGINX_CONF"
+echo ""
+print_info "Acesso:"
+if [[ "$GET_SSL" =~ ^[sS]$ ]]; then
+echo "  https://$DOMAIN"
+else
+echo "  http://$DOMAIN (HTTPS após obter SSL)"
+fi
 echo ""
 print_info "Para verificar logs:"
 echo "  docker compose -f $PROJECT_DIR/docker-compose.yml logs -f"
