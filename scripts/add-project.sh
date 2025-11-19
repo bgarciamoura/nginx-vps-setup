@@ -152,12 +152,6 @@ cat > "$NGINX_CONF" <<EOF
 # Configuração Nginx para $PROJECT_NAME
 # HTTP (initial setup)
 
-# WebSocket upgrade mapping
-map \$http_upgrade \$connection_upgrade {
-    default upgrade;
-    '' close;
-}
-
 server {
     listen 80;
     listen [::]:80;
@@ -186,7 +180,7 @@ server {
         # WebSocket support
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection $connection_upgrade;
     }
 }
 EOF
@@ -222,12 +216,6 @@ if [[ "$GET_SSL" =~ ^[sS]$ ]]; then
 
         cat > "$NGINX_CONF" <<EOF
 # Configuração Nginx para $PROJECT_NAME
-
-# WebSocket upgrade mapping
-map \$http_upgrade \$connection_upgrade {
-    default upgrade;
-    '' close;
-}
 
 # HTTP - Redirect to HTTPS
 server {
