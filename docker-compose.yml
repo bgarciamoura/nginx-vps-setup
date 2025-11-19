@@ -65,11 +65,8 @@ services:
 
 networks:
   proxy-network:
+    external: true
     name: proxy-network
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
 
 volumes:
   certbot-conf:
