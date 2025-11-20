@@ -1,0 +1,28 @@
+# Environment variables
+.env
+
+# Nginx configurations (podem conter informações sensíveis)
+nginx-proxy/nginx/conf.d/*.conf
+!nginx-proxy/nginx/conf.d/.gitkeep
+
+# SSL certificates and keys
+nginx-proxy/certbot/conf/
+nginx-proxy/ssl/
+
+# Projects directory (cada projeto deve ter seu próprio repositório)
+projects/*
+!projects/.gitkeep
+
+# Docker volumes
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
